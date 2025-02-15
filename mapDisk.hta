@@ -1,0 +1,257 @@
+<html>
+<head>
+<title>Mapowanie Dysk&oacute;w Sieciowych</title>
+<HTA:APPLICATION 
+     ID="objTest" 
+     APPLICATIONNAME="Mapowanie Dysk&oacute;w Sieciowych"
+     SCROLL="no"
+     SINGLEINSTANCE="yes"
+     ICON="16.ico"
+     INNERBORDER ="no"
+     MAXIMIZEBUTTON ="no"
+     MINIMIZEBUTTON ="no"
+     SHOWINTASKBAR ="no"
+     VERSION ="1.0"
+>
+</head>
+
+<SCRIPT LANGUAGE="VBScript">
+Dim timerClose
+Dim IsPMapped 
+Dim IsZMapped 
+Dim timerRun
+Dim gotCreds
+Dim startTime
+    
+    Sub TimerSub
+     if timerRun then
+        timerClose=timerClose-1
+        timerToClose.innerHTML="To okienko si&#281; zamknie po "&timerClose&" sekundach"
+        if (timerClose <0) then
+        close
+        end if
+     end if
+    End Sub
+    
+    Sub timerStop
+        timerToClose.innerHTML=""
+        timerRun=false
+    End Sub    
+    
+    Sub Window_Onload
+	Set WshNetwork = CreateObject("WScript.Network")
+	Set WshShell = CreateObject("WScript.Shell")
+	strWinLogon = "false"
+        gotCreds = False
+	window.resizeTo 450,400
+	ON ERROR RESUME NEXT
+		strWinLogon = WSHShell.RegRead("HKCU\Software\PJATK\wifi")
+		if (strWinLogon="false") then
+		else
+		close()
+		end if
+	ON ERROR GOTO 0
+                timerClose=20
+                IsPMapped = False
+		IsZMapped = False
+		timerRun = True
+		Set colDrives = WshNetwork.EnumNetworkDrives
+		For Index = 0 to colDrives.Count - 1 step 2
+                        If colDrives.Item(Index) = "P:" Then IsPMapped = True
+                        If colDrives.Item(Index) = "Z:" Then IsZMapped = True
+                        If colDrives.Item(Index) = "W:" Then IsWMapped = True
+		Next
+		if IsPMapped then
+		CheckBoxP.disabled=true
+		CheckboxP.title = "Dysk P ju&#382; istnieje"
+                WSHShell.RegWrite "HKCU\Software\PJATK\mapP", "false"
+		end if
+                if IsWMapped then
+		CheckBoxP.disabled=true
+		CheckboxP.title = "Dysk W ju&#382; istnieje"
+                WSHShell.RegWrite "HKCU\Software\PJATK\mapW", "false"
+		end if
+		if IsZMapped then
+		CheckBoxZ.disabled=true
+		CheckboxZ.title = "Dysk Z ju&#382; istnieje"
+                WSHShell.RegWrite "HKCU\Software\PJATK\mapZ", "false"
+		end if
+		if IsZMapped then
+			if IsPMapped then
+			 close
+			end if
+		end if
+                GetCreds
+        '       iTimerID = window.setInterval("TimerSub", 1000, "VBScript")
+
+    End Sub
+
+    Sub GetCreds
+    Set WSHShell = CreateObject("WScript.Shell")
+    On Error Resume Next
+        CheckboxP.Checked = WshShell.RegRead("HKCU\Software\PJWSTK\DISKP")
+        CheckboxZ.Checked = WshShell.RegRead("HKCU\Software\PJWSTK\DISKZ")
+        CheckboxW.Checked = WshShell.RegRead("HKCU\Software\PJWSTK\DISKW")
+        UserName.Value = WshShell.RegRead("HKCU\Software\PJWSTK\USERNAME")
+        PasswordArea.Value = WshShell.RegRead("HKCU\Software\PJWSTK\PASSWORD")
+        If Err.Number <> 0 Then
+                WScript.Echo "An error occurred: " & Err.Description
+                Err.Clear  ' Clear the error
+                Exit Sub   ' Exit the subroutine
+        End If
+
+        gotCreds = True
+        startTime = Timer  ' Get the current time in seconds since midnight
+
+        Do While Timer < startTime + 15
+                If CanReachVpnIp("10.1.1.102") Then
+                  If MapDisk(False) Then Exit Do
+                End If
+                WScript.Sleep 1000  ' Pause for 1 second
+        Loop
+    End Sub
+
+    Sub SaveCreds
+    On Error Resume Next
+    Set WSHShell = CreateObject("WScript.Shell")
+        WSHShell.RegWrite "HKCU\Software\PJWSTK\DISKP", CheckboxP.Checked
+        WSHShell.RegWrite "HKCU\Software\PJWSTK\DISKZ", CheckboxZ.Checked
+        WSHShell.RegWrite "HKCU\Software\PJWSTK\DISKW", CheckboxW.Checked
+        WSHShell.RegWrite "HKCU\Software\PJWSTK\USERNAME", UserName.Value, "REG_SZ"
+        WSHShell.RegWrite "HKCU\Software\PJWSTK\PASSWORD", PasswordArea.Value, "REG_SZ"
+    End Sub
+
+    Function CanReachVpnIp(ipAddress)
+        Dim objShell, command, result
+        Set objShell = CreateObject("WScript.Shell")
+        
+        ' Use the ping command to check reachability
+        command = "cmd /c ping -n 1 " & ipAddress
+        result = objShell.Run(command, 0, True) ' Run command silently
+
+        ' Ping returns 0 if the host is reachable
+        CanReachVpnIp = (result = 0)
+    End Function
+    
+    Function MapDisk(showErrors)
+    On Error GOTO 0
+    Set WSHShell = CreateObject("WScript.Shell")
+     if (Len(PasswordArea.Value)>7) then
+    	Set WshNetwork = CreateObject("WScript.Network")
+		Set WshShell = CreateObject("WScript.Shell")
+        If CheckboxP.Checked Then
+		WshNetwork.MapNetworkDrive "P:", "\\10.1.1.102\public",false ,"PJWSTK\"&UserName.Value,PasswordArea.Value
+            WSHShell.RegWrite "HKCU\Software\PJATK\mapP", "true"
+        End IF
+        If CheckboxZ.Checked Then
+    		WshNetwork.MapNetworkDrive "Z:", "\\10.1.1.102\users\"&UserName.Value,false,"PJWSTK\"&UserName.Value,PasswordArea.Value
+            WSHShell.RegWrite "HKCU\Software\PJATK\mapZ", "true"
+        End IF
+        If CheckboxW.Checked Then
+    		WshNetwork.MapNetworkDrive "W:", "\\10.1.1.123\"&UserName.Value&"\public_html",false,"PJWSTK\"&UserName.Value,PasswordArea.Value
+            WSHShell.RegWrite "HKCU\Software\PJATK\mapW", "true"
+        End IF
+        IsPMapped = True
+        IsZMapped = True
+        IsWMapped = True
+        Set colDrives = WshNetwork.EnumNetworkDrives
+	For Index = 0 to colDrives.Count - 1 step 2
+	        If colDrives.Item(Index) = "P:" Then IsPMapped = False
+	        If colDrives.Item(Index) = "Z:" Then IsZMapped = False
+                If colDrives.Item(Index) = "W:" Then IsWMapped = False
+        Next
+                isOk2Close=true
+                If CheckboxP.Checked Then
+                        If IsPMapped Then
+                                if showErrors Then MsgBox "Zle Haslo (:P)"
+                                isOk2Close=False
+                        end if
+                end if
+                If CheckboxZ.Checked Then
+                        If IsZMapped Then
+                                if showErrors Then MsgBox "Zle Haslo (:Z)"
+                                isOk2Close=False
+                        end if
+                end if
+                If CheckboxW.Checked Then
+                        If IsWMapped Then
+                                if showErrors Then MsgBox "Zle Haslo (:W)"
+                                isOk2Close=False
+                        end if
+                end if
+                If isOk2Close then
+                        close
+                        MapDisk = True
+                end if
+	else
+	        if showErrors Then MsgBox "Zle Haslo"
+        End IF
+        If Not gotCreds Then SaveCreds
+    End Function
+</SCRIPT>
+
+<body text="#000000" bgcolor="#FFFFFF" link="#0000CC" vlink="#0000CC" alink="#0000CC">
+  <table bgcolor="#ffffff" border="0" cellspacing="0" cellpadding="0" width="100%">
+    <tr>
+      <td align="center">
+        <center>
+         <img src="PJATK_Logo_PL_1_male.png" alt="Logo PJATK"/>
+         <br />
+         <table bgcolor="#ffffff" border="0" width="350">
+          <tr>
+           <td bgcolor="#DCDCDC" align="center">
+            <b>Logowanie do PJATK</b>
+           </td>
+          </tr>
+          <tr>
+          <td bgcolor="#FFFFFF" align="left">
+           <table bgcolor="#ffffff" align="center" border="0" width="100%">
+            <tr>
+             <td align="right" width="30%">Dyski:</td>
+             <td align="left" width="*">
+              <input type="checkbox" name="CheckboxP" id="CheckboxP" onClick="timerStop"> Dysk P (Public)  
+             </td>
+            </tr>
+            <tr>
+            <td align="right" width="30%"></td>
+             <td align="left" width="*">
+              <input type="checkbox" name="CheckboxZ" id="CheckboxZ" onClick="timerStop"> Dysk Z (Zet)
+            </td>
+           </tr>
+<tr>
+            <td align="right" width="30%"></td>
+             <td align="left" width="*">
+              <input type="checkbox" name="CheckboxW" id="CheckboxW" onClick="timerStop"> Dysk W (public_html)
+            </td>
+           </tr>
+          <tr>
+          <td align="right" width="30%">U&#380;ytkownik:</td>
+          <td align="left" width="*">
+           <input type="text" name="UserName" onClick="timerStop">
+          </td>
+          </tr>
+          <tr>
+          <td align="right" width="30%">Has&#322;o:</td>
+          <td align="left" width="*">
+            <input type="password" name="PasswordArea" onClick="timerStop">
+          </td>
+         </tr>
+        </table>
+       </td>
+      </tr>
+      <tr>
+      <td align="left">
+       <center>
+        <input id=button  class="button" type="button" value="Mapuj Dyski" name="map_button"  onClick="MapDisk(True)" title="Mapuje Dyski Sieciowe">
+       </center>
+      </td>
+     </tr>
+    </table>
+   </center>
+  </td>
+ </tr>
+</table>
+</body>
+
+<small><span id=timerToClose></span></small>
+
